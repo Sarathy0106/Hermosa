@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../models.dart';
+import '../services/download_service.dart';
 import '../services/library_service.dart';
 import '../services/player_service.dart';
 import '../theme.dart';
@@ -14,6 +15,7 @@ void showSongActions(BuildContext context, Song song) {
     builder: (sheetCtx) {
       final library = sheetCtx.watch<LibraryService>();
       final player = sheetCtx.read<PlayerService>();
+      final downloads = sheetCtx.watch<DownloadService>();
       final fav = library.isFavorite(song.id);
       return SafeArea(
         child: Column(
@@ -54,6 +56,55 @@ void showSongActions(BuildContext context, Song song) {
               onTap: () {
                 library.toggleFavorite(song);
                 Navigator.pop(sheetCtx);
+              },
+            ),
+            StreamBuilder<DownloadProgress>(
+              stream: downloads.downloadStream(song.id),
+              builder: (ctx, snap) {
+                final downloaded = downloads.isDownloaded(song.id);
+                final inProgress = snap.hasData && !snap.data!.done && snap.data!.error == null;
+                final error = snap.data?.error;
+
+                if (error != null) {
+                  return ListTile(
+                    leading: const Icon(Icons.error_outline_rounded, color: AppColors.danger),
+                    title: const Text('Download failed'),
+                    subtitle: Text(error, style: const TextStyle(fontSize: 11)),
+                  );
+                }
+
+                if (inProgress) {
+                  final p = snap.data!;
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    child: Row(
+                      children: [
+                        const SizedBox(
+                          width: 24, height: 24,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary),
+                        ),
+                        const SizedBox(width: 16),
+                        Text('Downloading ${(p.fraction * 100).round()}%'),
+                      ],
+                    ),
+                  );
+                }
+
+                return ListTile(
+                  leading: Icon(
+                    downloaded ? Icons.cloud_done_rounded : Icons.download_rounded,
+                    color: downloaded ? AppColors.primary : AppColors.textPrimary,
+                  ),
+                  title: Text(downloaded ? 'Remove download' : 'Download'),
+                  onTap: () {
+                    if (downloaded) {
+                      downloads.deleteDownload(song.id);
+                    } else {
+                      downloads.download(song);
+                    }
+                    Navigator.pop(sheetCtx);
+                  },
+                );
               },
             ),
             ListTile(

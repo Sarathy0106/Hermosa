@@ -157,6 +157,15 @@ class SaavnApi {
     return _songList(data['songs']);
   }
 
+  Future<String?> fetchLyrics(String songId) async {
+    try {
+      final data = await _get('/lyrics', {'id': songId});
+      return data['lyrics'] as String?;
+    } catch (_) {
+      return null;
+    }
+  }
+
   List<Song> _songList(dynamic list) => ((list as List?) ?? const [])
       .map((j) => Song.fromJson((j as Map).cast<String, dynamic>()))
       .where((s) => s.playable)
@@ -167,5 +176,10 @@ class SaavnApi {
       return ((image.last as Map)['url'] ?? '') as String;
     }
     return '';
+  }
+
+  void dispose() {
+    _client.close();
+    _cache.close();
   }
 }

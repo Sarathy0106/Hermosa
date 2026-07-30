@@ -1,0 +1,12 @@
+{
+  "name": "hermosa-room-server",
+  "version": "1.0.0",
+  "description": "WebSocket server for Hermosa listen-together rooms",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "ws": "^8.16.0"
+  }
+}

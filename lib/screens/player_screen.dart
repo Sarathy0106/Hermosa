@@ -1,4 +1,5 @@
 import 'dart:ui';
+import 'dart:math' as math;
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -7,9 +8,13 @@ import 'package:provider/provider.dart';
 
 import '../services/library_service.dart';
 import '../services/player_service.dart';
-import '../theme.dart';
+import '../services/room_service.dart';
+import '../services/theme_provider.dart';
 import '../widgets/cover_image.dart';
 import '../widgets/glass.dart';
+import '../widgets/lyrics_viewer.dart';
+import '../widgets/room_sheet.dart';
+import '../widgets/sleep_timer_sheet.dart';
 import '../widgets/song_actions.dart';
 import '../widgets/wave_slider.dart';
 
@@ -26,6 +31,7 @@ class PlayerScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final service = context.watch<PlayerService>();
     final library = context.watch<LibraryService>();
+    final h = context.hermosa;
     final song = service.current;
     if (song == null) {
       // Queue ended or cleared while this screen was open.
@@ -44,7 +50,7 @@ class PlayerScreen extends StatelessWidget {
               child: CachedNetworkImage(
                   imageUrl: song.imageUrl, fit: BoxFit.cover),
             ),
-          Container(color: AppColors.bg.withValues(alpha: .72)),
+          Container(color: h.bg.withValues(alpha: .72)),
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 28),
@@ -59,14 +65,22 @@ class PlayerScreen extends StatelessWidget {
                             size: 28),
                         onPressed: () => Navigator.pop(context),
                       ),
-                      const Expanded(
+                      Expanded(
                         child: Center(
                           child: Text('NOW PLAYING',
                               style: TextStyle(
                                   fontSize: 11,
                                   letterSpacing: 3,
-                                  color: AppColors.textSecondary,
+                                  color: h.textSecondary,
                                   fontWeight: FontWeight.w600)),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.lyrics_rounded),
+                        onPressed: () => showLyricsOverlay(
+                          context,
+                          song.id,
+                          Duration(seconds: song.durationSeconds),
                         ),
                       ),
                       IconButton(
@@ -75,26 +89,38 @@ class PlayerScreen extends StatelessWidget {
                       ),
                     ],
                   ),
-                  const Spacer(),
+                  const SizedBox(height: 12),
                   // Artwork
-                  Container(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(28),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: .55),
-                          blurRadius: 44,
-                          offset: const Offset(0, 18),
-                        ),
-                      ],
+                  Flexible(
+                    child: Center(
+                      child: LayoutBuilder(builder: (context, constraints) {
+                        final widthBasedSize =
+                            MediaQuery.of(context).size.width - 72;
+                        final size = math.min(
+                          widthBasedSize,
+                          constraints.maxHeight,
+                        );
+                        return Container(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(28),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: .55),
+                                blurRadius: 44,
+                                offset: const Offset(0, 18),
+                              ),
+                            ],
+                          ),
+                          child: CoverImage(
+                            url: song.imageUrl,
+                            size: size,
+                            radius: 28,
+                          ),
+                        );
+                      }),
                     ),
-                    child: LayoutBuilder(builder: (context, _) {
-                      final w = MediaQuery.of(context).size.width - 72;
-                      return CoverImage(
-                          url: song.imageUrl, size: w, radius: 28);
-                    }),
                   ),
-                  const Spacer(),
+                  const SizedBox(height: 14),
                   // Glass panel: song info + waveform + transport controls
                   Glass(
                     borderRadius: BorderRadius.circular(28),
@@ -120,9 +146,9 @@ class PlayerScreen extends StatelessWidget {
                             Text(song.artists,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                    color: AppColors.textSecondary,
-                                    fontSize: 15)),
+style: TextStyle(
+                                     color: h.textSecondary,
+                                     fontSize: 15)),
                           ],
                         ),
                       ),
@@ -133,8 +159,8 @@ class PlayerScreen extends StatelessWidget {
                               ? Icons.favorite_rounded
                               : Icons.favorite_border_rounded,
                           color: fav
-                              ? AppColors.danger
-                              : AppColors.textPrimary,
+                              ? h.danger
+                              : h.textPrimary,
                         ),
                         onPressed: () => library.toggleFavorite(song),
                       ),
@@ -161,22 +187,22 @@ class PlayerScreen extends StatelessWidget {
                                 onSeek: service.player.seek,
                               ),
                               const SizedBox(height: 6),
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(_fmt(pos),
-                                      style: const TextStyle(
-                                          fontSize: 12,
-                                          color:
-                                              AppColors.textSecondary)),
-                                  Text(_fmt(total),
-                                      style: const TextStyle(
-                                          fontSize: 12,
-                                          color:
-                                              AppColors.textSecondary)),
-                                ],
-                              ),
+Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(_fmt(pos),
+                                        style: TextStyle(
+                                            fontSize: 12,
+                                            color:
+                                                h.textSecondary)),
+                                    Text(_fmt(total),
+                                        style: TextStyle(
+                                            fontSize: 12,
+                                            color:
+                                                h.textSecondary)),
+                                  ],
+                                ),
                             ],
                           );
                         },
@@ -215,10 +241,10 @@ class PlayerScreen extends StatelessWidget {
                             child: Container(
                               width: 66,
                               height: 66,
-                              decoration: const BoxDecoration(
-                                shape: BoxShape.circle,
-                                gradient: AppColors.heroGradient,
-                              ),
+decoration: BoxDecoration(
+                                 shape: BoxShape.circle,
+                                 gradient: h.heroGradient,
+                               ),
                               child: busy
                                   ? const Padding(
                                       padding: EdgeInsets.all(20),
@@ -258,15 +284,45 @@ class PlayerScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 10),
-                  // Queue
-                  TextButton.icon(
-                    onPressed: () => _showQueue(context),
-                    icon: const Icon(Icons.queue_music_rounded,
-                        size: 20, color: AppColors.textSecondary),
-                    label: const Text('Up next',
-                        style: TextStyle(
-                            color: AppColors.textSecondary)),
+                  // Queue & Sleep Timer
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextButton.icon(
+                          onPressed: () => _showQueue(context),
+                          icon: Icon(Icons.queue_music_rounded,
+                              size: 20, color: h.textSecondary),
+                          label: Text('Up next',
+                              style: TextStyle(
+                                  color: h.textSecondary)),
+                        ),
+                      ),
+                      Expanded(
+                        child: _SpeedButton(service: service),
+                      ),
+                      Expanded(
+                        child: TextButton.icon(
+                          onPressed: () => showRoomSheet(context),
+                          icon: Icon(Icons.group_rounded,
+                              size: 20, color: h.textSecondary),
+                          label: Text('Room',
+                              style: TextStyle(
+                                  color: h.textSecondary)),
+                        ),
+                      ),
+                      Expanded(
+                        child: TextButton.icon(
+                          onPressed: () => showSleepTimerSheet(context),
+                          icon: Icon(Icons.bedtime_rounded,
+                              size: 20, color: h.textSecondary),
+                          label: Text('Sleep',
+                              style: TextStyle(
+                                  color: h.textSecondary)),
+                        ),
+                      ),
+                    ],
                   ),
+                  _RoomIndicator(),
                   const SizedBox(height: 12),
                 ],
               ),
@@ -291,6 +347,7 @@ class PlayerScreen extends StatelessWidget {
             final service = ctx.watch<PlayerService>();
             final queue = service.queue;
             final currentIndex = service.player.currentIndex ?? 0;
+            final h = ctx.hermosa;
             return Glass(
               borderRadius:
                   const BorderRadius.vertical(top: Radius.circular(28)),
@@ -311,7 +368,7 @@ class PlayerScreen extends StatelessWidget {
                       final s = queue[i];
                       final isCurrent = i == currentIndex;
                       return ListTile(
-                        leading: CoverImage(url: s.imageUrl, size: 44),
+leading: CoverImage(url: s.imageUrl, size: 44),
                         title: Text(s.title,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -319,24 +376,24 @@ class PlayerScreen extends StatelessWidget {
                                 fontSize: 14,
                                 fontWeight: FontWeight.w600,
                                 color: isCurrent
-                                    ? AppColors.primary
-                                    : AppColors.textPrimary)),
+                                    ? h.primary
+                                    : h.textPrimary)),
                         subtitle: Text(s.artists,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
+                            style: TextStyle(
                                 fontSize: 12,
-                                color: AppColors.textSecondary)),
+                                color: h.textSecondary)),
                         trailing: isCurrent
-                            ? const Icon(Icons.graphic_eq_rounded,
-                                color: AppColors.primary)
+                            ? Icon(Icons.graphic_eq_rounded,
+                                color: h.primary)
                             : IconButton(
-                                icon: const Icon(Icons.close_rounded,
+                                icon: Icon(Icons.close_rounded,
                                     size: 18,
-                                    color: AppColors.textSecondary),
+                                    color: h.textSecondary),
                                 onPressed: () =>
                                     service.removeFromQueue(i),
-                              ),
+                          ),
                         onTap: () => service.skipTo(i),
                       );
                     },
@@ -369,6 +426,7 @@ class _RoundIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final h = context.hermosa;
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -377,17 +435,109 @@ class _RoundIcon extends StatelessWidget {
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           color: active
-              ? AppColors.accent.withValues(alpha: .16)
+              ? h.accent.withValues(alpha: .16)
               : Colors.white.withValues(alpha: .07),
           border: Border.all(
             color: active
-                ? AppColors.accent.withValues(alpha: .45)
+                ? h.accent.withValues(alpha: .45)
                 : Colors.white.withValues(alpha: .08),
           ),
         ),
         child: Icon(icon,
             size: iconSize,
-            color: active ? AppColors.accent : AppColors.textPrimary),
+            color: active ? h.accent : h.textPrimary),
+      ),
+    );
+  }
+}
+
+class _RoomIndicator extends StatelessWidget {
+  const _RoomIndicator();
+
+  @override
+  Widget build(BuildContext context) {
+    final room = context.watch<RoomService>();
+    if (!room.inRoom) return const SizedBox.shrink();
+
+    final h = context.hermosa;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.group_rounded, size: 14, color: h.primary),
+          const SizedBox(width: 4),
+          Text(room.roomCode ?? '',
+              style: TextStyle(fontSize: 12, color: h.primary, fontWeight: FontWeight.w600)),
+          const SizedBox(width: 4),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+            decoration: BoxDecoration(
+              color: h.primary.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text('${room.members.length}',
+                style: TextStyle(fontSize: 11, color: h.primary)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SpeedButton extends StatelessWidget {
+  final PlayerService service;
+  const _SpeedButton({required this.service});
+
+  @override
+  Widget build(BuildContext context) {
+    final h = context.hermosa;
+    final currentSpeed = service.player.speed;
+
+    return PopupMenuButton<double>(
+      offset: const Offset(0, -240),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      color: h.surface,
+      elevation: 8,
+      onSelected: (speed) => service.player.setSpeed(speed),
+      itemBuilder: (_) => [
+        for (final speed in [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0])
+          PopupMenuItem(
+            value: speed,
+            child: Row(
+              children: [
+                Icon(
+                  speed == currentSpeed ? Icons.check_circle_rounded : Icons.circle_outlined,
+                  size: 18,
+                  color: speed == currentSpeed ? h.primary : h.textSecondary,
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  speed == 1.0 ? 'Normal' : '${speed}x',
+                  style: TextStyle(
+                    fontWeight: speed == currentSpeed ? FontWeight.w600 : FontWeight.w400,
+                    color: speed == currentSpeed ? h.primary : h.textPrimary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.speed_rounded, size: 18, color: h.textSecondary),
+              const SizedBox(width: 4),
+              Text(
+                currentSpeed == 1.0 ? '1x' : '${currentSpeed}x',
+                style: TextStyle(fontSize: 12, color: h.textSecondary, fontWeight: FontWeight.w600),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

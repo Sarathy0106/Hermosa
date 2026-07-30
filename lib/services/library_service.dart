@@ -104,4 +104,12 @@ class LibraryService extends ChangeNotifier {
     }
     notifyListeners();
   }
+
+  @override
+  void dispose() {
+    _favorites.close();
+    _playlists.close();
+    _history.close();
+    super.dispose();
+  }
 }

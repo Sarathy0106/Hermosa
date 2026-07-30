@@ -3,10 +3,12 @@ import 'package:just_audio_background/just_audio_background.dart';
 import 'package:provider/provider.dart';
 
 import 'screens/root_screen.dart';
+import 'services/download_service.dart';
 import 'services/library_service.dart';
 import 'services/player_service.dart';
+import 'services/room_service.dart';
 import 'services/saavn_api.dart';
-import 'theme.dart';
+import 'services/theme_provider.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -23,7 +25,11 @@ Future<void> main() async {
 
   final library = await LibraryService.init();
   final api = await SaavnApi.init();
-  final player = PlayerService();
+  final downloads = await DownloadService.init();
+  final player = PlayerService(downloads: downloads);
+  final room = RoomService(player);
+  final theme = ThemeProvider();
+  await theme.init();
 
   // Record listening history as tracks change.
   player.player.currentIndexStream.listen((i) {
@@ -37,6 +43,9 @@ Future<void> main() async {
         Provider.value(value: api),
         ChangeNotifierProvider.value(value: player),
         ChangeNotifierProvider.value(value: library),
+        ChangeNotifierProvider.value(value: downloads),
+        ChangeNotifierProvider.value(value: room),
+        ChangeNotifierProvider.value(value: theme),
       ],
       child: const HermosaApp(),
     ),
@@ -48,11 +57,15 @@ class HermosaApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Hermosa',
-      debugShowCheckedModeBanner: false,
-      theme: buildHermosaTheme(),
-      home: const RootScreen(),
+    return Consumer<ThemeProvider>(
+      builder: (context, theme, _) {
+        return MaterialApp(
+          title: 'Hermosa',
+          debugShowCheckedModeBanner: false,
+          theme: theme.buildTheme(),
+          home: const RootScreen(),
+        );
+      },
     );
   }
 }

@@ -3,6 +3,7 @@ import 'package:just_audio/just_audio.dart';
 import 'package:just_audio_background/just_audio_background.dart';
 
 import '../models.dart';
+import 'download_service.dart';
 
 /// Owns the [AudioPlayer] and the play queue.
 ///
@@ -10,6 +11,7 @@ import '../models.dart';
 /// source and renders the system media notification / lock-screen controls.
 class PlayerService extends ChangeNotifier {
   final AudioPlayer player = AudioPlayer();
+  final DownloadService? _downloads;
 
   List<Song> _queue = [];
   List<Song> get queue => List.unmodifiable(_queue);
@@ -20,27 +22,26 @@ class PlayerService extends ChangeNotifier {
     return _queue[i];
   }
 
-  PlayerService() {
+  PlayerService({DownloadService? downloads}) : _downloads = downloads {
     player.currentIndexStream.listen((_) => notifyListeners());
-    player.playbackEventStream.listen(
-      (_) {},
-      onError: (Object e, StackTrace st) {
-        debugPrint('Playback error: $e');
-      },
-    );
+    player.speedStream.listen((_) => notifyListeners());
   }
 
-  AudioSource _source(Song s) => AudioSource.uri(
-        Uri.parse(s.streamUrl),
-        tag: MediaItem(
-          id: s.id,
-          title: s.title,
-          artist: s.artists,
-          album: s.albumName,
-          duration: Duration(seconds: s.durationSeconds),
-          artUri: s.imageUrl.isEmpty ? null : Uri.parse(s.imageUrl),
-        ),
-      );
+  AudioSource _source(Song s) {
+    final local = _downloads?.localPath(s.id);
+    final uri = local != null ? Uri.file(local) : Uri.parse(s.streamUrl);
+    return AudioSource.uri(
+      uri,
+      tag: MediaItem(
+        id: s.id,
+        title: s.title,
+        artist: s.artists,
+        album: s.albumName,
+        duration: Duration(seconds: s.durationSeconds),
+        artUri: s.imageUrl.isEmpty ? null : Uri.parse(s.imageUrl),
+      ),
+    );
+  }
 
   /// Replaces the queue with [songs] and starts playing at [startIndex].
   Future<void> playAll(List<Song> songs, {int startIndex = 0}) async {
