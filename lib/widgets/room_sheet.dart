@@ -19,6 +19,18 @@ class _RoomSheetState extends State<RoomSheet> {
   final _serverCtrl = TextEditingController();
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final room = context.read<RoomService>();
+      _serverCtrl.text = room.serverUrl;
+      if (room.state == RoomConnectionState.disconnected) {
+        room.connect();
+      }
+    });
+  }
+
+  @override
   void dispose() {
     _codeCtrl.dispose();
     _serverCtrl.dispose();

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../models.dart';
@@ -15,7 +16,12 @@ class RoomMember {
 enum RoomConnectionState { disconnected, connecting, connected, error }
 
 class RoomService extends ChangeNotifier {
+  static const _boxName = 'room_prefs';
+  static const _serverUrlKey = 'server_url';
+  static const defaultServerUrl = 'wss://hermosa-om9v.onrender.com';
+
   final PlayerService _player;
+  late final Box _prefs;
 
   WebSocketChannel? _channel;
   String? _memberId;
@@ -28,7 +34,7 @@ class RoomService extends ChangeNotifier {
   Timer? _positionTimer;
   StreamSubscription? _playerSub;
 
-  RoomService(this._player) {
+  RoomService(this._player) : _prefs = Hive.box(_boxName) {
     _playerSub = _player.player.currentIndexStream.listen((_) {
       if (inRoom && isHost) {
         final song = _player.current;
@@ -50,33 +56,49 @@ class RoomService extends ChangeNotifier {
   bool get inRoom => _state == RoomConnectionState.connected && _roomCode != null;
   String? get error => _error;
 
-  void setServer(String url) {
+  String get serverUrl =>
+      _prefs.get(_serverUrlKey, defaultValue: defaultServerUrl) as String;
+
+  Future<void> setServer(String url) async {
+    await _prefs.put(_serverUrlKey, url);
     notifyListeners();
   }
 
-  Future<void> connect(String serverUrl) async {
+  Future<void> connect([String? url]) async {
+    _cleanup();
+    final serverUrl = url ?? this.serverUrl;
     _setState(RoomConnectionState.connecting);
     _error = null;
 
     try {
       final uri = Uri.parse(serverUrl);
+      if (uri.scheme != 'ws' && uri.scheme != 'wss') {
+        throw Exception('Invalid URL scheme "${uri.scheme}". Use ws:// or wss://');
+      }
       _channel = WebSocketChannel.connect(uri);
-      await _channel!.ready;
+      await _channel!.ready.timeout(const Duration(seconds: 10));
 
       _sub = _channel!.stream.listen(
         _onMessage,
-        onError: (e) {
-          _setState(RoomConnectionState.error);
+        onError: (Object e) {
           _error = e.toString();
+          _setState(RoomConnectionState.error);
         },
         onDone: () {
           _cleanup();
           _setState(RoomConnectionState.disconnected);
         },
       );
-    } catch (e) {
+
+      _setState(RoomConnectionState.connected);
+    } on TimeoutException {
+      _cleanup();
+      _error = 'Connection timed out. Check the server URL and try again.';
       _setState(RoomConnectionState.error);
+    } catch (e) {
+      _cleanup();
       _error = e.toString();
+      _setState(RoomConnectionState.error);
     }
   }
 

@@ -35,7 +35,7 @@ npm start
 
 ### Connect in the app
 
-Tap **Room** on the player screen, paste your server URL (`wss://…` or `ws://…`), then **Create Room** or **Join** with a 6‑character code.
+The app comes pre-configured with the server URL (`wss://hermosa-om9v.onrender.com`). Tap **Room** on the player screen — it connects automatically. Then **Create Room** or **Join** with a 6‑character code. You can change the server URL in the text field if needed.
 
 ### How it works
 

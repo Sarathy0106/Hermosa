@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'package:just_audio_background/just_audio_background.dart';
 import 'package:provider/provider.dart';
 
@@ -27,6 +28,7 @@ Future<void> main() async {
   final api = await SaavnApi.init();
   final downloads = await DownloadService.init();
   final player = PlayerService(downloads: downloads);
+  await Hive.openBox('room_prefs');
   final room = RoomService(player);
   final theme = ThemeProvider();
   await theme.init();

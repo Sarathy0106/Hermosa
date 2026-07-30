@@ -1,8 +1,10 @@
 const { WebSocketServer } = require("ws");
+const crypto = require("crypto");
 
 const PORT = process.env.PORT || 8080;
 
 const wss = new WebSocketServer({ port: PORT });
+console.log(`Hermosa room server starting on port ${PORT}...`);
 
 // ── In-memory room store ──────────────────────────────────────────────
 const rooms = new Map(); // code -> { members: Map<id, ws> }
@@ -31,7 +33,9 @@ function memberList(room) {
 }
 
 // ── Connection handling ────────────────────────────────────────────────
-wss.on("connection", (ws) => {
+wss.on("connection", (ws, req) => {
+  const ip = req?.socket?.remoteAddress ?? "unknown";
+  console.log(`[${new Date().toISOString()}] + connection from ${ip}`);
   let memberId = "";
   let currentRoom = null;
 
@@ -42,6 +46,8 @@ wss.on("connection", (ws) => {
     } catch {
       return;
     }
+
+    console.log(`  [${new Date().toISOString()}] msg type=${msg.type}${msg.code ? ` code=${msg.code}` : ""}`);
 
     switch (msg.type) {
       // ── Create room ──────────────────────────────────────────────
@@ -133,6 +139,7 @@ wss.on("connection", (ws) => {
   });
 
   ws.on("close", () => {
+    console.log(`[${new Date().toISOString()}] - connection closed${memberId ? ` member=${memberId.slice(0, 8)}` : ""}`);
     if (currentRoom) {
       currentRoom.members.delete(memberId);
       if (currentRoom.members.size === 0) {
