@@ -119,6 +119,7 @@ class RoomService extends ChangeNotifier {
       case 'room_created':
         _memberId = msg['memberId'] as String;
         _roomCode = msg['code'] as String;
+        _members = [RoomMember(id: _memberId!)];
         _startPositionSync();
         _setState(RoomConnectionState.connected);
         break;
