@@ -26,8 +26,9 @@ class MiniPlayer extends StatelessWidget {
           pageBuilder: (_, _, _) => const PlayerScreen(),
           transitionsBuilder: (_, anim, _, child) => SlideTransition(
             position: Tween(begin: const Offset(0, 1), end: Offset.zero)
-                .animate(CurvedAnimation(
-                    parent: anim, curve: Curves.easeOutCubic)),
+                .animate(
+                  CurvedAnimation(parent: anim, curve: Curves.easeOutCubic),
+                ),
             child: child,
           ),
           transitionDuration: const Duration(milliseconds: 320),
@@ -50,13 +51,11 @@ class MiniPlayer extends StatelessWidget {
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
             child: Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
               decoration: BoxDecoration(
                 color: AppColors.surfaceHigh.withValues(alpha: .82),
                 borderRadius: BorderRadius.circular(18),
-                border: Border.all(
-                    color: Colors.white.withValues(alpha: .06)),
+                border: Border.all(color: Colors.white.withValues(alpha: .06)),
               ),
               child: _MiniPlayerBody(service: service, song: song),
             ),
@@ -76,93 +75,109 @@ class _MiniPlayerBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(
-          mainAxisSize: MainAxisSize.min,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
           children: [
-            Row(
-              children: [
-                CoverImage(url: song.imageUrl, size: 44, radius: 10),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(song.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                              fontWeight: FontWeight.w600, fontSize: 14)),
-                      Text(song.artists,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                              color: AppColors.textSecondary, fontSize: 12)),
-                    ],
-                  ),
-                ),
-                StreamBuilder<PlayerState>(
-                  stream: service.player.playerStateStream,
-                  builder: (context, snap) {
-                    final state = snap.data;
-                    final processing = state?.processingState;
-                    final playing = state?.playing ?? false;
-                    if (processing == ProcessingState.loading ||
-                        processing == ProcessingState.buffering) {
-                      return const SizedBox(
-                        width: 40,
-                        height: 40,
-                        child: Padding(
-                          padding: EdgeInsets.all(10),
-                          child: CircularProgressIndicator(
-                              strokeWidth: 2, color: AppColors.primary),
-                        ),
-                      );
-                    }
-                    return IconButton(
-                      icon: Icon(
-                        playing
-                            ? Icons.pause_rounded
-                            : Icons.play_arrow_rounded,
-                        size: 30,
-                      ),
-                      onPressed: service.togglePlay,
-                    );
-                  },
-                ),
-                IconButton(
-                  icon: const Icon(Icons.skip_next_rounded, size: 28),
-                  onPressed: service.next,
-                ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            StreamBuilder<Duration>(
-              stream: service.player.positionStream,
-              builder: (context, snap) {
-                final pos = snap.data ?? Duration.zero;
-                final total = service.player.duration ?? Duration.zero;
-                final value = total.inMilliseconds == 0
-                    ? 0.0
-                    : (pos.inMilliseconds / total.inMilliseconds)
-                        .clamp(0.0, 1.0);
-                return ClipRRect(
-                  borderRadius: BorderRadius.circular(2),
-                  child: ShaderMask(
-                    shaderCallback: (rect) => const LinearGradient(
-                      colors: [AppColors.primary, AppColors.accent],
-                    ).createShader(rect),
-                    blendMode: BlendMode.srcATop,
-                    child: LinearProgressIndicator(
-                      value: value,
-                      minHeight: 3,
-                      backgroundColor:
-                          Colors.white.withValues(alpha: .08),
-                      valueColor:
-                          const AlwaysStoppedAnimation(Colors.white),
+            CoverImage(url: song.imageUrl, size: 44, radius: 10),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    song.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
                     ),
+                  ),
+                  Text(
+                    song.artists,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            StreamBuilder<PlayerState>(
+              stream: service.player.playerStateStream,
+              builder: (context, snap) {
+                final state = snap.data;
+                final processing = state?.processingState;
+                final playing = state?.playing ?? false;
+                if (processing == ProcessingState.loading ||
+                    processing == ProcessingState.buffering) {
+                  return const SizedBox(
+                    width: 36,
+                    height: 36,
+                    child: Padding(
+                      padding: EdgeInsets.all(8),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                  );
+                }
+                return Container(
+                  width: 38,
+                  height: 38,
+                  margin: const EdgeInsets.symmetric(horizontal: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF5A4880),
+                    borderRadius: BorderRadius.circular(19),
+                  ),
+                  child: IconButton(
+                    padding: EdgeInsets.zero,
+                    icon: Icon(
+                      playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                      size: 24,
+                      color: Colors.white,
+                    ),
+                    onPressed: service.togglePlay,
                   ),
                 );
               },
             ),
+            IconButton(
+              icon: const Icon(Icons.skip_next_rounded, size: 28),
+              onPressed: service.next,
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        StreamBuilder<Duration>(
+          stream: service.player.positionStream,
+          builder: (context, snap) {
+            final pos = snap.data ?? Duration.zero;
+            final total = service.player.duration ?? Duration.zero;
+            final value = total.inMilliseconds == 0
+                ? 0.0
+                : (pos.inMilliseconds / total.inMilliseconds).clamp(0.0, 1.0);
+            return ClipRRect(
+              borderRadius: BorderRadius.circular(2),
+              child: ShaderMask(
+                shaderCallback: (rect) => const LinearGradient(
+                  colors: [AppColors.primary, AppColors.accent],
+                ).createShader(rect),
+                blendMode: BlendMode.srcATop,
+                child: LinearProgressIndicator(
+                  value: value,
+                  minHeight: 3,
+                  backgroundColor: Colors.white.withValues(alpha: .08),
+                  valueColor: const AlwaysStoppedAnimation(Colors.white),
+                ),
+              ),
+            );
+          },
+        ),
       ],
     );
   }
