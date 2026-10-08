@@ -5,6 +5,7 @@ import '../models.dart';
 import '../services/download_service.dart';
 import '../services/library_service.dart';
 import '../services/player_service.dart';
+import '../services/recommendation_service.dart';
 import '../theme.dart';
 import 'cover_image.dart';
 import 'glass.dart';
@@ -105,6 +106,24 @@ void showSongActions(BuildContext context, Song song) {
                     Navigator.pop(sheetCtx);
                   },
                 );
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.radio_rounded, color: AppColors.primary),
+              title: const Text('Start song radio'),
+              subtitle: const Text('Play smart recommendations for this song',
+                  style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+              onTap: () async {
+                Navigator.pop(sheetCtx);
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                  content: Text('Starting ${song.title} Radio...'),
+                  duration: const Duration(seconds: 1),
+                ));
+                final recommender = context.read<RecommendationService>();
+                final radioSongs = await recommender.getSongRadio(song);
+                if (context.mounted && radioSongs.isNotEmpty) {
+                  context.read<PlayerService>().playAll(radioSongs);
+                }
               },
             ),
             ListTile(

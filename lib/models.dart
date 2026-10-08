@@ -6,17 +6,37 @@ String _decodeEntities(String s) => s
     .replaceAll('&#039;', "'")
     .replaceAll('&apos;', "'");
 
+String _string(dynamic value, [String fallback = '']) {
+  if (value == null) return fallback;
+  return value is String ? value : value.toString();
+}
+
+int _integer(dynamic value) {
+  if (value is num) return value.toInt();
+  return int.tryParse(_string(value)) ?? 0;
+}
+
 /// Picks the URL for the wanted quality from a list of {quality, url} maps,
 /// falling back to the last (usually highest) entry.
 String _pick(dynamic list, String quality) {
+  String sanitize(dynamic value) {
+    final u = _string(value).trim();
+    return u.startsWith('http://') ? 'https://${u.substring(7)}' : u;
+  }
+
+  if (list is String) return sanitize(list);
   if (list is! List || list.isEmpty) return '';
   for (final item in list) {
     if (item is Map && item['quality'] == quality) {
-      return (item['url'] ?? item['link'] ?? '') as String;
+      final u = item['url'] ?? item['link'];
+      return sanitize(u);
     }
   }
   final last = list.last;
-  if (last is Map) return (last['url'] ?? last['link'] ?? '') as String;
+  if (last is Map) {
+    final u = last['url'] ?? last['link'];
+    return sanitize(u);
+  }
   return '';
 }
 
@@ -46,20 +66,29 @@ class Song {
   });
 
   factory Song.fromJson(Map<String, dynamic> json) {
-    final artistList =
-        ((json['artists'] as Map?)?['primary'] as List?) ?? const [];
-    final names = artistList
-        .map((a) => _decodeEntities((a as Map)['name'] as String? ?? ''))
+    final artists = json['artists'];
+    final primaryArtists = artists is Map ? artists['primary'] as List? : null;
+    final artistList = primaryArtists != null && primaryArtists.isNotEmpty
+        ? primaryArtists
+        : (artists is Map ? artists['all'] as List? ?? const [] : const []);
+    var names = artistList
+        .whereType<Map>()
+        .map((a) => _decodeEntities(_string(a['name'])))
         .where((n) => n.isNotEmpty)
         .join(', ');
-    final album = json['album'] as Map?;
+    names = names.isNotEmpty
+        ? names
+        : _decodeEntities(_string(json['primaryArtists'] ?? json['artist']));
+    final album = json['album'];
     return Song(
-      id: json['id'] as String? ?? '',
-      title: _decodeEntities(json['name'] as String? ?? 'Unknown'),
+      id: _string(json['id']),
+      title: _decodeEntities(_string(json['name'] ?? json['title'], 'Unknown')),
       artists: names.isEmpty ? 'Unknown artist' : names,
-      albumName: _decodeEntities((album?['name'] as String?) ?? ''),
-      albumId: album?['id'] as String?,
-      durationSeconds: (json['duration'] as num?)?.toInt() ?? 0,
+      albumName: _decodeEntities(
+        album is Map ? _string(album['name']) : _string(album),
+      ),
+      albumId: album is Map ? _string(album['id']).nullIfEmpty : null,
+      durationSeconds: _integer(json['duration']),
       imageUrl: _pick(json['image'], '500x500'),
       streamUrl: _pick(json['downloadUrl'], '320kbps'),
       raw: json,
@@ -76,24 +105,31 @@ class Song {
   }
 }
 
+extension on String {
+  String? get nullIfEmpty => isEmpty ? null : this;
+}
+
 class PlaylistSummary {
   final String id;
   final String name;
   final String imageUrl;
   final int? songCount;
 
-  PlaylistSummary(
-      {required this.id,
-      required this.name,
-      required this.imageUrl,
-      this.songCount});
+  PlaylistSummary({
+    required this.id,
+    required this.name,
+    required this.imageUrl,
+    this.songCount,
+  });
 
   factory PlaylistSummary.fromJson(Map<String, dynamic> json) =>
       PlaylistSummary(
-        id: json['id'].toString(),
-        name: _decodeEntities(json['name'] as String? ?? ''),
+        id: _string(json['id']),
+        name: _decodeEntities(_string(json['name'] ?? json['title'])),
         imageUrl: _pick(json['image'], '500x500'),
-        songCount: (json['songCount'] as num?)?.toInt(),
+        songCount: json['songCount'] == null
+            ? null
+            : _integer(json['songCount']),
       );
 }
 
@@ -113,16 +149,22 @@ class AlbumSummary {
   });
 
   factory AlbumSummary.fromJson(Map<String, dynamic> json) {
-    final artistList =
-        ((json['artists'] as Map?)?['primary'] as List?) ?? const [];
+    final artists = json['artists'];
+    final artistList = artists is Map
+        ? (artists['primary'] as List? ?? const [])
+        : const [];
     return AlbumSummary(
-      id: json['id'].toString(),
-      name: _decodeEntities(json['name'] as String? ?? ''),
-      artists: artistList
-          .map((a) => _decodeEntities((a as Map)['name'] as String? ?? ''))
-          .join(', '),
+      id: _string(json['id']),
+      name: _decodeEntities(_string(json['name'] ?? json['title'])),
+      artists:
+          artistList
+              .whereType<Map>()
+              .map((a) => _decodeEntities(_string(a['name'])))
+              .join(', ')
+              .nullIfEmpty ??
+          _decodeEntities(_string(json['primaryArtists'])),
       imageUrl: _pick(json['image'], '500x500'),
-      year: (json['year'] as num?)?.toInt(),
+      year: json['year'] == null ? null : _integer(json['year']),
     );
   }
 }
@@ -135,8 +177,8 @@ class ArtistSummary {
   ArtistSummary({required this.id, required this.name, required this.imageUrl});
 
   factory ArtistSummary.fromJson(Map<String, dynamic> json) => ArtistSummary(
-        id: json['id'].toString(),
-        name: _decodeEntities(json['name'] as String? ?? ''),
-        imageUrl: _pick(json['image'], '500x500'),
-      );
+    id: _string(json['id']),
+    name: _decodeEntities(_string(json['name'])),
+    imageUrl: _pick(json['image'], '500x500'),
+  );
 }

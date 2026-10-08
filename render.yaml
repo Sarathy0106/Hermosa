@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: hermosa-server
+    env: node
+    plan: free
+    rootDir: server
+    buildCommand: npm install
+    startCommand: node index.js
+    envVars:
+      - key: PORT
+        value: 8080
+      - key: SAAVN_API_URL
+        value: https://resona-saavn-api.vercel.app/api

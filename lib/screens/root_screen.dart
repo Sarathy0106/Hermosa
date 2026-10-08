@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../theme.dart';
-import '../widgets/glass.dart';
+import '../widgets/bottom_player_bar.dart';
+import '../widgets/desktop_sidebar.dart';
 import '../widgets/mini_player.dart';
 import 'home_screen.dart';
 import 'library_screen.dart';
@@ -16,72 +17,93 @@ class RootScreen extends StatefulWidget {
 
 class _RootScreenState extends State<RootScreen> {
   int _index = 0;
-
-  static const _tabs = [
-    (Icons.home_outlined, Icons.home_rounded),
-    (Icons.search_rounded, Icons.search_rounded),
-    (Icons.library_music_outlined, Icons.library_music_rounded),
-  ];
+  String _searchQuery = '';
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      extendBody: true,
-      body: IndexedStack(
-        index: _index,
-        children: const [HomeScreen(), SearchScreen(), LibraryScreen()],
-      ),
-      bottomNavigationBar: SafeArea(
-        top: false,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const MiniPlayer(),
-            // Slim floating frosted-glass nav pill.
-            Padding(
-              padding: const EdgeInsets.fromLTRB(56, 2, 56, 10),
-              child: Glass(
-                borderRadius: BorderRadius.circular(27),
-                tint: const Color(0xB30B0B12),
-                blur: 26,
-                child: SizedBox(
-                  height: 54,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isDesktop = constraints.maxWidth >= 840;
+
+        if (isDesktop) {
+          // ── Desktop Studio Layout matching reference ──────────────
+          return Scaffold(
+            backgroundColor: AppColors.bg,
+            body: Column(
+              children: [
+                Expanded(
                   child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
-                      for (var i = 0; i < _tabs.length; i++)
-                        GestureDetector(
-                          behavior: HitTestBehavior.opaque,
-                          onTap: () => setState(() => _index = i),
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 220),
-                            curve: Curves.easeOut,
-                            width: 42,
-                            height: 42,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: _index == i
-                                  ? AppColors.primary
-                                      .withValues(alpha: .20)
-                                  : Colors.transparent,
+                      DesktopSidebar(
+                        selectedIndex: _index,
+                        onSelectTab: (i) => setState(() => _index = i),
+                      ),
+                      Expanded(
+                        child: IndexedStack(
+                          index: _index,
+                          children: [
+                            HomeScreen(
+                              onSearch: (query) {
+                                setState(() {
+                                  _searchQuery = query;
+                                  _index = 1;
+                                });
+                              },
                             ),
-                            child: Icon(
-                              _index == i ? _tabs[i].$2 : _tabs[i].$1,
-                              size: 23,
-                              color: _index == i
-                                  ? AppColors.primary
-                                  : AppColors.textSecondary,
+                            SearchScreen(
+                              key: ValueKey(_searchQuery),
+                              initialQuery: _searchQuery,
                             ),
-                          ),
+                            const LibraryScreen(),
+                          ],
                         ),
+                      ),
                     ],
                   ),
                 ),
-              ),
+                const BottomPlayerBar(),
+              ],
             ),
-          ],
-        ),
-      ),
+          );
+        }
+
+        // ── Mobile Compact Layout ───────────────────────────────────
+        return Scaffold(
+          extendBody: false,
+          body: IndexedStack(
+            index: _index,
+            children: const [HomeScreen(), SearchScreen(), LibraryScreen()],
+          ),
+          bottomNavigationBar: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const MiniPlayer(),
+              NavigationBar(
+                selectedIndex: _index,
+                onDestinationSelected: (value) =>
+                    setState(() => _index = value),
+                destinations: const [
+                  NavigationDestination(
+                    icon: Icon(Icons.home_outlined),
+                    selectedIcon: Icon(Icons.home_rounded),
+                    label: 'Home',
+                  ),
+                  NavigationDestination(
+                    icon: Icon(Icons.search_rounded),
+                    selectedIcon: Icon(Icons.manage_search_rounded),
+                    label: 'Search',
+                  ),
+                  NavigationDestination(
+                    icon: Icon(Icons.library_music_outlined),
+                    selectedIcon: Icon(Icons.library_music_rounded),
+                    label: 'Library',
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

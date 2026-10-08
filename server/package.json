@@ -3,8 +3,12 @@
   "version": "1.0.0",
   "description": "WebSocket server for Hermosa listen-together rooms",
   "main": "index.js",
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "test": "node --test"
   },
   "dependencies": {
     "ws": "^8.16.0"

@@ -105,6 +105,11 @@ class LibraryService extends ChangeNotifier {
     notifyListeners();
   }
 
+  void clearHistory() {
+    _history.clear();
+    notifyListeners();
+  }
+
   @override
   void dispose() {
     _favorites.close();

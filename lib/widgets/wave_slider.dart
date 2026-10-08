@@ -1,11 +1,7 @@
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
-/// Material 3 / Android 13+ Expressive Squiggly Wave Seek Bar.
-///
-/// Draws a smooth, continuous sinusoidal wave on the played portion of the track,
-/// with an animated flowing phase while [isPlaying] is true, a rounded thumb knob,
-/// and a clean straight unplayed track line.
+/// Modern, sleek Material 3 seek bar with smooth track, rounded thumb,
+/// hover effect, and responsive drag-seeking.
 class M3WavySlider extends StatefulWidget {
   final double value; // 0.0 to 1.0
   final ValueChanged<double> onChanged;
@@ -30,52 +26,20 @@ class M3WavySlider extends StatefulWidget {
     this.inactiveColor,
     this.thumbColor,
     this.height = 36.0,
-    this.waveAmplitude = 4.5,
-    this.waveLength = 26.0,
-    this.trackThickness = 3.5,
-    this.thumbRadius = 7.0,
+    this.waveAmplitude = 0.0,
+    this.waveLength = 20.0,
+    this.trackThickness = 4.0,
+    this.thumbRadius = 6.0,
   });
 
   @override
   State<M3WavySlider> createState() => _M3WavySliderState();
 }
 
-class _M3WavySliderState extends State<M3WavySlider>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _animController;
+class _M3WavySliderState extends State<M3WavySlider> {
   double? _dragValue;
   bool _isDragging = false;
   bool _isHovered = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _animController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 2200),
-    );
-    if (widget.isPlaying) {
-      _animController.repeat();
-    }
-  }
-
-  @override
-  void didUpdateWidget(M3WavySlider oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.isPlaying != oldWidget.isPlaying) {
-      if (widget.isPlaying) {
-        if (!_animController.isAnimating) _animController.repeat();
-      } else {
-        _animController.stop();
-      }
-    }
-  }
-
-  @override
-  void dispose() {
-    _animController.dispose();
-    super.dispose();
-  }
 
   double get _effectiveValue {
     if (_dragValue != null) return _dragValue!.clamp(0.0, 1.0);
@@ -83,6 +47,7 @@ class _M3WavySliderState extends State<M3WavySlider>
   }
 
   void _handleSeek(double dx, double width) {
+    if (width <= 0) return;
     final v = (dx / width).clamp(0.0, 1.0);
     setState(() => _dragValue = v);
     widget.onChanged(v);
@@ -104,7 +69,7 @@ class _M3WavySliderState extends State<M3WavySlider>
     final theme = Theme.of(context);
     final active = widget.activeColor ?? theme.colorScheme.primary;
     final inactive = widget.inactiveColor ??
-        Colors.white.withValues(alpha: 0.18);
+        Colors.white.withValues(alpha: 0.16);
     final thumb = widget.thumbColor ?? active;
 
     return MouseRegion(
@@ -145,27 +110,22 @@ class _M3WavySliderState extends State<M3WavySlider>
             child: SizedBox(
               width: width,
               height: widget.height,
-              child: AnimatedBuilder(
-                animation: _animController,
-                builder: (context, _) {
-                  return CustomPaint(
-                    size: Size(width, widget.height),
-                    painter: _M3WavySliderPainter(
-                      value: _effectiveValue,
-                      phase: _animController.value * 2 * math.pi,
-                      activeColor: active,
-                      inactiveColor: inactive,
-                      thumbColor: thumb,
-                      waveAmplitude: widget.waveAmplitude,
-                      waveLength: widget.waveLength,
-                      trackThickness: widget.trackThickness,
-                      thumbRadius: _isDragging || _isHovered
-                          ? widget.thumbRadius + 2.0
-                          : widget.thumbRadius,
-                      isDragging: _isDragging,
-                    ),
-                  );
-                },
+              child: CustomPaint(
+                size: Size(width, widget.height),
+                painter: _ModernSliderPainter(
+                  value: _effectiveValue,
+                  activeColor: active,
+                  inactiveColor: inactive,
+                  thumbColor: thumb,
+                  trackThickness: (_isDragging || _isHovered)
+                      ? widget.trackThickness + 1.5
+                      : widget.trackThickness,
+                  thumbRadius: (_isDragging || _isHovered)
+                      ? widget.thumbRadius + 2.5
+                      : widget.thumbRadius,
+                  isDragging: _isDragging,
+                  isHovered: _isHovered,
+                ),
               ),
             ),
           );
@@ -175,29 +135,25 @@ class _M3WavySliderState extends State<M3WavySlider>
   }
 }
 
-class _M3WavySliderPainter extends CustomPainter {
+class _ModernSliderPainter extends CustomPainter {
   final double value;
-  final double phase;
   final Color activeColor;
   final Color inactiveColor;
   final Color thumbColor;
-  final double waveAmplitude;
-  final double waveLength;
   final double trackThickness;
   final double thumbRadius;
   final bool isDragging;
+  final bool isHovered;
 
-  _M3WavySliderPainter({
+  _ModernSliderPainter({
     required this.value,
-    required this.phase,
     required this.activeColor,
     required this.inactiveColor,
     required this.thumbColor,
-    required this.waveAmplitude,
-    required this.waveLength,
     required this.trackThickness,
     required this.thumbRadius,
     required this.isDragging,
+    required this.isHovered,
   });
 
   @override
@@ -210,88 +166,74 @@ class _M3WavySliderPainter extends CustomPainter {
 
     final playedWidth = (w * value).clamp(0.0, w);
 
-    // 1. Draw Inactive / Unplayed Track (Straight line from thumb to end)
+    // 1. Draw Inactive Track
     final inactivePaint = Paint()
       ..color = inactiveColor
       ..strokeWidth = trackThickness
       ..strokeCap = StrokeCap.round
       ..style = PaintingStyle.stroke;
 
-    final startInactiveX = (playedWidth + thumbRadius * 0.5).clamp(0.0, w);
-    if (startInactiveX < w) {
-      canvas.drawLine(
-        Offset(startInactiveX, centerY),
-        Offset(w - trackThickness / 2, centerY),
-        inactivePaint,
-      );
-    }
+    canvas.drawLine(
+      Offset(trackThickness / 2, centerY),
+      Offset(w - trackThickness / 2, centerY),
+      inactivePaint,
+    );
 
-    // 2. Draw Played Track (Smooth Squiggly Sine Wave)
-    if (playedWidth > 0.5) {
+    // 2. Draw Active Track (Played portion)
+    if (playedWidth > 0.0) {
       final activePaint = Paint()
         ..color = activeColor
         ..strokeWidth = trackThickness
         ..strokeCap = StrokeCap.round
-        ..strokeJoin = StrokeJoin.round
         ..style = PaintingStyle.stroke;
 
-      final wavePath = Path();
-      wavePath.moveTo(0, centerY);
-
-      // If played width is very short (< 8px), draw a straight line
-      if (playedWidth < 8.0) {
-        wavePath.lineTo(playedWidth, centerY);
-      } else {
-        const step = 1.5;
-        const rampZone = 14.0; // Distance over which amplitude ramps up and down smoothly
-
-        for (double x = 0; x <= playedWidth; x += step) {
-          // Smooth damping at beginning and before the thumb so it meets the center cleanly
-          final rampIn = (x / rampZone).clamp(0.0, 1.0);
-          final rampOut = ((playedWidth - x) / rampZone).clamp(0.0, 1.0);
-          final damping = math.sin(rampIn * math.pi / 2) * math.sin(rampOut * math.pi / 2);
-
-          final waveY = centerY +
-              (waveAmplitude * damping) *
-                  math.sin((x / waveLength) * 2 * math.pi - phase);
-
-          wavePath.lineTo(x, waveY);
-        }
-        wavePath.lineTo(playedWidth, centerY);
-      }
-
-      canvas.drawPath(wavePath, activePaint);
+      canvas.drawLine(
+        Offset(trackThickness / 2, centerY),
+        Offset(playedWidth.clamp(trackThickness / 2, w - trackThickness / 2), centerY),
+        activePaint,
+      );
     }
 
     // 3. Draw Thumb
-    final thumbCenter = Offset(playedWidth.clamp(thumbRadius, w - thumbRadius), centerY);
+    final thumbCenterX = playedWidth.clamp(thumbRadius, w - thumbRadius);
+    final thumbCenter = Offset(thumbCenterX, centerY);
 
-    // Subtle drop shadow / glow behind thumb
-    if (isDragging) {
-      final glowPaint = Paint()
-        ..color = activeColor.withValues(alpha: 0.3)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
-      canvas.drawCircle(thumbCenter, thumbRadius + 4, glowPaint);
+    // Glow / Halo when hovering or dragging
+    if (isDragging || isHovered) {
+      final haloPaint = Paint()
+        ..color = activeColor.withValues(alpha: isDragging ? 0.35 : 0.2)
+        ..style = PaintingStyle.fill;
+      canvas.drawCircle(thumbCenter, thumbRadius + 6, haloPaint);
     }
 
+    // Thumb body
     final thumbPaint = Paint()
       ..color = thumbColor
       ..style = PaintingStyle.fill;
 
     canvas.drawCircle(thumbCenter, thumbRadius, thumbPaint);
+
+    // Inner subtle center dot if dragging
+    if (isDragging) {
+      final innerDot = Paint()
+        ..color = Colors.white
+        ..style = PaintingStyle.fill;
+      canvas.drawCircle(thumbCenter, thumbRadius * 0.45, innerDot);
+    }
   }
 
   @override
-  bool shouldRepaint(_M3WavySliderPainter old) {
+  bool shouldRepaint(_ModernSliderPainter old) {
     return old.value != value ||
-        old.phase != phase ||
         old.activeColor != activeColor ||
         old.inactiveColor != inactiveColor ||
         old.thumbColor != thumbColor ||
+        old.trackThickness != trackThickness ||
         old.thumbRadius != thumbRadius ||
-        old.isDragging != isDragging;
+        old.isDragging != isDragging ||
+        old.isHovered != isHovered;
   }
 }
 
-/// Backward compatibility alias if needed
+/// Backward compatibility alias
 typedef WaveformSeekBar = M3WavySlider;

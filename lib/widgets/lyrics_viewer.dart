@@ -17,12 +17,16 @@ class _LyricLine {
 /// Synced or static lyrics viewer with karaoke-style highlighting.
 class LyricsViewer extends StatefulWidget {
   final String songId;
+  final String? title;
+  final String? artist;
   final Duration totalDuration;
   final Duration position;
 
   const LyricsViewer({
     super.key,
     required this.songId,
+    this.title,
+    this.artist,
     required this.totalDuration,
     required this.position,
   });
@@ -33,9 +37,11 @@ class LyricsViewer extends StatefulWidget {
 
 class _LyricsViewerState extends State<LyricsViewer> {
   List<_LyricLine> _lines = [];
+  bool _hasTimestamps = false;
   bool _loading = true;
   String? _error;
   final _scrollController = ScrollController();
+  int _lastActiveIndex = -1;
 
   @override
   void initState() {
@@ -62,10 +68,17 @@ class _LyricsViewerState extends State<LyricsViewer> {
       _loading = true;
       _error = null;
       _lines = [];
+      _hasTimestamps = false;
+      _lastActiveIndex = -1;
     });
     try {
       final api = context.read<SaavnApi>();
-      final raw = await api.fetchLyrics(widget.songId);
+      final raw = await api.fetchLyrics(
+        widget.songId,
+        title: widget.title,
+        artist: widget.artist,
+        duration: widget.totalDuration.inSeconds,
+      );
       if (!mounted) return;
       if (raw == null || raw.trim().isEmpty) {
         setState(() {
@@ -86,57 +99,82 @@ class _LyricsViewerState extends State<LyricsViewer> {
   }
 
   void _parseLyrics(String raw) {
-    final lines = raw.split('\n').map((line) => line.trim()).where((l) => l.isNotEmpty).toList();
+    final tagPattern = RegExp(r'\[(\d{1,2}):(\d{2})(?:[\.:](\d{1,3}))?\]');
+    final stripPattern = RegExp(r'\[\d{1,2}:\d{2}(?:[\.:]\d{1,3})?\]');
+    final metadataPattern = RegExp(r'^\[(ti|ar|al|au|by|offset|length|re|ve):.*\]', caseSensitive: false);
+
+    final rawLines = raw.split('\n').map((l) => l.trim()).where((l) => l.isNotEmpty).toList();
     final parsed = <_LyricLine>[];
     var hasTimestamps = false;
 
-    for (final line in lines) {
-      // Try to parse LRC timestamp: [mm:ss.xx] or [mm:ss]
-      final lrcMatch = RegExp(r'^\[(\d{1,2}):(\d{2})(?:\.(\d{2,3}))?\](.*)').firstMatch(line);
-      if (lrcMatch != null) {
-        final mins = int.parse(lrcMatch.group(1)!);
-        final secs = int.parse(lrcMatch.group(2)!);
-        final millis = lrcMatch.group(3) != null
-            ? int.parse(lrcMatch.group(3)!.padRight(3, '0'))
-            : 0;
-        parsed.add(_LyricLine(
-          Duration(milliseconds: mins * 60000 + secs * 1000 + millis),
-          lrcMatch.group(4)!.trim(),
-        ));
+    for (final line in rawLines) {
+      if (metadataPattern.hasMatch(line)) continue;
+
+      final matches = tagPattern.allMatches(line);
+      final cleanText = line.replaceAll(stripPattern, '').trim();
+
+      if (matches.isNotEmpty) {
         hasTimestamps = true;
-      } else {
-        parsed.add(_LyricLine(null, line));
+        final displayText = cleanText.isNotEmpty ? cleanText : '♪';
+        for (final match in matches) {
+          final mins = int.parse(match.group(1)!);
+          final secs = int.parse(match.group(2)!);
+          final msRaw = match.group(3);
+          var ms = 0;
+          if (msRaw != null) {
+            if (msRaw.length == 1) {
+              ms = int.parse(msRaw) * 100;
+            } else if (msRaw.length == 2) {
+              ms = int.parse(msRaw) * 10;
+            } else {
+              ms = int.parse(msRaw.substring(0, 3));
+            }
+          }
+          final time = Duration(milliseconds: mins * 60000 + secs * 1000 + ms);
+          parsed.add(_LyricLine(time, displayText));
+        }
+      } else if (cleanText.isNotEmpty) {
+        parsed.add(_LyricLine(null, cleanText));
       }
     }
 
-    // If no timestamps, distribute lines evenly across song duration
-    if (!hasTimestamps && widget.totalDuration.inMilliseconds > 0) {
-      final segment = widget.totalDuration.inMilliseconds / parsed.length;
-      for (var i = 0; i < parsed.length; i++) {
-        parsed[i] = _LyricLine(
-          Duration(milliseconds: (segment * i).round()),
-          parsed[i].text,
-        );
-      }
+    if (hasTimestamps) {
+      parsed.sort((a, b) => (a.timestamp ?? Duration.zero).compareTo(b.timestamp ?? Duration.zero));
     }
 
     setState(() {
       _lines = parsed;
+      _hasTimestamps = hasTimestamps;
       _loading = false;
     });
   }
 
   int get _currentLineIndex {
-    if (_lines.isEmpty) return 0;
+    if (_lines.isEmpty || !_hasTimestamps) return 0;
     final pos = widget.position.inMilliseconds;
     var active = 0;
     for (var i = 0; i < _lines.length; i++) {
       final ts = _lines[i].timestamp;
-      if (ts != null && pos >= ts.inMilliseconds) {
-        active = i;
+      if (ts != null) {
+        if (pos >= ts.inMilliseconds) {
+          active = i;
+        } else {
+          break;
+        }
       }
     }
     return active;
+  }
+
+  void _scrollToIndex(int index) {
+    if (!_scrollController.hasClients || index < 0 || index >= _lines.length || !_hasTimestamps) return;
+    final viewportHeight = _scrollController.position.viewportDimension;
+    final targetOffset = (index * 48.0) - (viewportHeight * 0.35);
+    _scrollController.animateTo(
+      targetOffset.clamp(0.0, _scrollController.position.maxScrollExtent),
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOutCubic,
+    );
   }
 
   @override
@@ -159,23 +197,34 @@ class _LyricsViewerState extends State<LyricsViewer> {
 
     final currentIndex = _currentLineIndex;
 
+    if (_hasTimestamps && currentIndex != _lastActiveIndex) {
+      _lastActiveIndex = currentIndex;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _scrollToIndex(currentIndex);
+      });
+    }
+
     return ListView.builder(
       controller: _scrollController,
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       itemCount: _lines.length,
       itemBuilder: (context, i) {
         final line = _lines[i];
-        final isCurrent = i == currentIndex;
-        final isPast = i < currentIndex;
+        final isCurrent = _hasTimestamps && i == currentIndex;
+        final isPast = _hasTimestamps && i < currentIndex;
 
         return AnimatedDefaultTextStyle(
           duration: const Duration(milliseconds: 200),
           style: TextStyle(
-            fontSize: isCurrent ? 20 : (isPast ? 16 : 16),
-            fontWeight: isCurrent ? FontWeight.w700 : FontWeight.w400,
-            color: isCurrent
-                ? h.primary
-                : (isPast ? h.textSecondary.withValues(alpha: 0.5) : h.textPrimary),
+            fontSize: _hasTimestamps ? (isCurrent ? 20 : (isPast ? 16 : 16)) : 17,
+            fontWeight: _hasTimestamps
+                ? (isCurrent ? FontWeight.w700 : FontWeight.w400)
+                : FontWeight.w400,
+            color: _hasTimestamps
+                ? (isCurrent
+                    ? h.primary
+                    : (isPast ? h.textSecondary.withValues(alpha: 0.5) : h.textPrimary))
+                : h.textPrimary,
             height: 1.8,
           ),
           child: Padding(
@@ -192,11 +241,19 @@ class _LyricsViewerState extends State<LyricsViewer> {
 }
 
 /// Opens full-screen lyrics overlay on the player screen.
-void showLyricsOverlay(BuildContext context, String songId, Duration totalDuration) {
+void showLyricsOverlay(
+  BuildContext context,
+  String songId,
+  Duration totalDuration, {
+  String? title,
+  String? artist,
+}) {
   Navigator.of(context).push(
     PageRouteBuilder(
       pageBuilder: (context, animation, secondaryAnimation) => _LyricsOverlay(
         songId: songId,
+        title: title,
+        artist: artist,
         totalDuration: totalDuration,
       ),
       transitionsBuilder: (context, anim, secondaryAnim, child) => FadeTransition(opacity: anim, child: child),
@@ -208,10 +265,14 @@ void showLyricsOverlay(BuildContext context, String songId, Duration totalDurati
 
 class _LyricsOverlay extends StatelessWidget {
   final String songId;
+  final String? title;
+  final String? artist;
   final Duration totalDuration;
 
   const _LyricsOverlay({
     required this.songId,
+    this.title,
+    this.artist,
     required this.totalDuration,
   });
 
@@ -243,6 +304,8 @@ class _LyricsOverlay extends StatelessWidget {
                   Expanded(
                     child: LyricsViewer(
                       songId: songId,
+                      title: title,
+                      artist: artist,
                       totalDuration: totalDuration,
                       position: pos,
                     ),
